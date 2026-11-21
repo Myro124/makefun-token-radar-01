@@ -1,0 +1,58 @@
+:root{--bg:#0b1220;--panel:#111c33;--panel2:#0e1830;--line:#24365e;--text:#e8eefc;--muted:#9db0d6;--faint:#6b7fa8;--accent:#4cc2ff;--green:#3ddc97;--red:#ff6b6b;--amber:#ffc53d;--chip:#1b2c4f;--radius:12px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+a{color:var(--accent)}
+.skip{position:absolute;left:-999px}
+.skip:focus{left:8px;top:8px;background:var(--panel);padding:8px 12px;z-index:9}
+header.hero{padding:28px 28px 18px;border-bottom:1px solid var(--line);background:radial-gradient(900px 220px at 20% 0%,#173a6b 0%,transparent 60%)}
+.hero h1{margin:0 0 6px;font-size:30px;letter-spacing:-.02em}
+.hero h1 b{color:var(--accent)}
+.hero p{margin:4px 0;color:var(--muted);max-width:900px}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;min-width:140px}
+.stat b{display:block;font-size:22px}
+.stat span{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+nav.tabs{display:flex;gap:8px;padding:14px 28px 0;flex-wrap:wrap}
+nav.tabs button{background:var(--chip);color:var(--text);border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:14px}
+nav.tabs button[aria-pressed="true"]{background:var(--accent);color:#06233a;border-color:var(--accent);font-weight:700}
+section{padding:18px 28px 28px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:0 0 14px}
+.controls label{font-size:12px;color:var(--muted);display:grid;gap:4px}
+.controls input,.controls select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:14px;min-width:150px}
+.controls input[type="checkbox"]{min-width:0;width:18px;height:18px}
+.check{display:flex;gap:8px;align-items:center;padding-bottom:8px}
+.count{color:var(--muted);font-size:13px;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:var(--radius);overflow:hidden}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;white-space:nowrap}
+th:hover{color:var(--text)}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:#16264a}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.name b{display:block}
+td.name small{color:var(--muted)}
+.up{color:var(--green)} .down{color:var(--red)} .flat{color:var(--muted)}
+.pill{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:12px;margin:2px 2px 0 0}
+.pill.watch{border-color:var(--amber);color:var(--amber)}
+.detail{background:var(--panel);border:1px solid var(--accent);border-radius:var(--radius);padding:20px;margin:0 0 18px}
+.detail h2{margin:0 0 4px;font-size:24px}
+.detail .sub{color:var(--muted);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.grid div{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.grid b{display:block;font-size:18px}
+.grid span{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.formula{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px;font-family:ui-monospace,Menlo,monospace;font-size:13px;overflow-x:auto;white-space:pre-wrap}
+ol.farm{margin:10px 0;padding-left:22px}
+ol.farm li{margin:8px 0}
+ol.farm b{color:var(--accent)}
+.note{background:#2a2206;border:1px solid #6b5518;border-radius:10px;padding:12px 14px;color:#ffe9a8}
+.method h3{margin-top:22px}
+.method table{margin-top:8px}
+.method th,.method td{cursor:default}
+.sandbox{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:0 0 18px}
+.sandbox label{display:block;margin:10px 0 4px;color:var(--muted);font-size:13px}
+.sandbox input[type="range"]{width:min(420px,100%)}
+.sandbox output{font-weight:700;color:var(--accent)}
+footer{padding:0 28px 28px;color:var(--faint);font-size:13px}
+button.close{background:var(--chip);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;float:right}
+@media(max-width:760px){header.hero,section,nav.tabs{padding-left:14px;padding-right:14px}.hero h1{font-size:24px}table{font-size:13px}}
