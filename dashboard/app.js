@@ -1,4 +1,4 @@
-/* Token Radar dashboard (radar-3): fitted board, launch odds, farm verdicts,
+/* Token Radar dashboard (radar-4): fitted board, launch odds, farm verdicts,
    out-of-sample evidence. Static, no network: all data comes from data.js
    (window.TOKEN_RADAR), which main.ts writes from the snapshot. */
 (function () {
@@ -50,7 +50,7 @@
   /* Farm economics, the same formula as lib/model.ts, re-run for the
      reader's chosen deposit so verdicts move with the plan size. */
   function econ(r, deposit) {
-    var drop = 0.07 * r.implied_value_usd * (deposit / Math.max(1, r.tvl_usd));
+    var drop = 0.05 * r.implied_value_usd * (deposit / Math.max(1, r.tvl_usd));
     var fees = 3.4 + 0.001 * deposit;
     var hours = deposit <= 100 ? 2.4 : deposit <= 1000 ? 3.6 : 5.0;
     var net = drop - fees;
@@ -138,7 +138,7 @@
       '<table><thead><tr><th>Protocol</th><th class="num">TVL</th><th class="num">Market cap</th><th class="num">mcap / TVL</th></tr></thead><tbody>' + peers + '</tbody></table>' +
       '<h3>Farm verdict — $' + state.deposit.toLocaleString('en-US') + ' for 12 weeks</h3><div class="grid">' +
       '<div><b>' + e.verdict + '</b><span>Verdict</span></div>' +
-      '<div><b>' + money(e.drop) + '</b><span>Modelled drop (7% of implied, pro-rata to TVL)</span></div>' +
+      '<div><b>' + money(e.drop) + '</b><span>Modelled drop (5% of implied, pro-rata to TVL)</span></div>' +
       '<div><b>' + money(e.fees) + '</b><span>Fees</span></div>' +
       '<div><b>' + money(e.net) + '</b><span>Net of fees</span></div>' +
       '<div><b>' + money(e.perHour) + '/h</b><span>Net per hour (' + e.hours + 'h of work)</span></div>' +
@@ -232,7 +232,7 @@
             '<td class="num">' + (l.mcap_usd && l.tvl_usd ? (l.mcap_usd / l.tvl_usd).toFixed(2) + 'x' : '—') + '</td></tr>';
         }).join('') + '</tbody></table></section>';
     } else {
-      html += '<section class="method"><h2>Evidence &amp; method — radar-3</h2>' +
+      html += '<section class="method"><h2>Evidence &amp; method — radar-4</h2>' +
         '<p>Nothing here is hand-picked. Every number below is computed from the same snapshot at run time, and the dashboard re-checks it: the board is ranks 1–' + D.rows.length + ' in order, implied values never rise, and the totals match board.json.</p>' +
         '<h3>How a row is priced</h3><div class="formula">size curve        log(mcap) = ' + D.fit.size_curve_a.toFixed(4) + ' + ' + D.fit.size_curve_b.toFixed(4) + ' x log(TVL)   (OLS on ' + D.fit.comps_n + ' traded tokens; ten times the TVL buys ' + Math.pow(10, D.fit.size_curve_b).toFixed(1) + 'x the value)' +
         '\ncategory premium  median log-residual of the category\'s traded tokens, shrunk n/(n+4) toward 0, capped +/-0.8' +
@@ -241,7 +241,7 @@
         '\nlaunch odds       55% age-bucket token rate + 45% category token rate, shrunk 15% to the overall ' + (D.fit.overall_odds * 100).toFixed(0) + '%, clamped 5%..95%' +
         '\nimplied value     = value if it launches x launch odds' +
         '\nranges            P10/P25/P75/P90 from the fitted model\'s own residual quantiles' +
-        '\nfarm verdict      7% of implied value, shared pro-rata to TVL, less $3.40 + 0.1% fees, over 12 weeks; Farm when net/hour >= $3, Marginal when net > 0, else Skip</div>' +
+        '\nfarm verdict      5% of implied value, shared pro-rata to TVL, less $3.40 + 0.1% fees, over 12 weeks; Farm when net/hour >= $3, Marginal when net > 0, else Skip</div>' +
         '<h3>Out-of-sample evidence</h3><table><thead><tr><th>Check</th><th class="num">This model</th><th class="num">Flat median multiple</th><th>What it means</th></tr></thead><tbody>' +
         '<tr><td>Leave-one-out median miss</td><td class="num">×' + v.loo_median_miss.toFixed(2) + '</td><td class="num">×' + v.loo_flat_median_miss.toFixed(2) + '</td><td>Each traded token priced without itself</td></tr>' +
         '<tr><td>Walk-forward median miss</td><td class="num">×' + v.walkforward_median_miss.toFixed(2) + '</td><td class="num">×' + v.walkforward_flat_median_miss.toFixed(2) + '</td><td>Older ' + Math.floor(v.comps_n / 2) + ' tokens fit, newer ' + v.walkforward_n + ' tested</td></tr>' +
@@ -258,7 +258,7 @@
         '<h3>What this board does not do</h3><p>It does not predict whether or when a token is issued. A high implied value means the protocol is large, growing and seasoned enough that a token priced like its sector\'s live tokens would be large, times the odds — from the peers\' record — that it ever launches one. Farm plans are sized to the protocol\'s TVL and age; check the protocol\'s own pages before acting, and never pay to claim an airdrop.</p></section>';
     }
     var monotonic = D.rows.every(function (r, i) { return i === 0 || r.implied_value_usd <= D.rows[i - 1].implied_value_usd; });
-    html += '<footer>Token Radar · model radar-3 · snapshot ' + esc(D.as_of) + ' · Integrity: ' + D.rows.length + ' rows, ranks 1–' + D.rows.length + ' in order, values ' + (monotonic ? 'never rise' : 'CHECK FAILED') + ', total implied ' + moneyFull(D.totals.implied_usd) + ' = board.json · Built for the make.fun token launch radar bounty. Implied values are this entry\'s own claim, not a prediction.</footer>';
+    html += '<footer>Token Radar · model radar-4 · snapshot ' + esc(D.as_of) + ' · Integrity: ' + D.rows.length + ' rows, ranks 1–' + D.rows.length + ' in order, values ' + (monotonic ? 'never rise' : 'CHECK FAILED') + ', total implied ' + moneyFull(D.totals.implied_usd) + ' = board.json · Built for the make.fun token launch radar bounty. Implied values are this entry\'s own claim, not a prediction.</footer>';
     root.innerHTML = html;
     bind();
     drawScatter();
