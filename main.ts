@@ -1,4 +1,4 @@
-// Token Radar (radar-4): read the sealed DefiLlama snapshot, fit the
+// Token Radar (radar-5): read the sealed DefiLlama snapshot, fit the
 // valuation model on its own traded tokens, rank every pre-token protocol
 // by implied value = value-if-it-launches x launch odds, and write the
 // board, the dashboard data, the dashboard, the screenshots and the
@@ -96,7 +96,7 @@ if (accounted.ranked + accounted.token_recorded + accounted.out_excluded !== acc
 
 const live = snapshot.protocols.filter((p) => p.mcap_usd !== null && p.mcap_usd > 0);
 const dashboardData = {
-  model: 'radar-4',
+  model: 'radar-5',
   as_of: snapshot.asOf,
   deposit,
   fit: {
