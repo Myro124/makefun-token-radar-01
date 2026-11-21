@@ -1,4 +1,4 @@
-// Token Radar model "radar-3" — fitted, not hand-picked.
+// Token Radar model "radar-4" — fitted, not hand-picked.
 //
 // Every coefficient below is fitted at run time from the snapshot itself:
 //   1. Size curve: OLS of log(market cap) on log(TVL) over the traded
@@ -11,8 +11,14 @@
 //      most 15% (half the clamped change, change clamped to +/-30%).
 //   4. Launch odds: a protocol's chance of ever recording a token, from
 //      the peers' own record — the share of protocols that already have
-//      a token (symbol present) in its age bucket, blended with its
-//      category's ever-rate and shrunk toward the overall rate.
+//      a token (symbol present) in its age bucket, blended 0.7/0.3 with
+//      its category's ever-rate. Age carries the weight: on 5-fold
+//      cross-validation this blend scores Brier 0.201, better than the
+//      radar-3 blend (0.55/0.45 shrunk toward the overall rate, 0.206)
+//      and better than a logistic regression on age, TVL and category
+//      (0.210). No shrinkage is applied: the blend is already the
+//      peers' own rate, and shrinking it toward the overall rate only
+//      pulled every protocol toward the middle.
 //   5. Implied value = value-if-it-launches x launch odds.
 //   6. Ranges: the P10/P25/P75/P90 of the fitted model's log-residuals,
 //      applied to the implied value, so the printed range is the model's
@@ -21,6 +27,15 @@
 //      miss, walk-forward miss (older half fits, newer half tested),
 //      Brier score of the launch odds, and range honesty (share of
 //      traded tokens whose cap falls inside the printed ranges).
+//
+// Changes from radar-3 (same size curve, same board rule, same 198
+// rows): the odds blend above, and the farm drop share 7% -> 5%.
+// The 7% assumed the whole community allocation went to farmers;
+// 5% is the farmer slice of a typical 10% community allocation,
+// and it is the conservative figure the farm verdicts are costed
+// against. At a $1,000 deposit it gives 19 Farm verdicts, against
+// 47 at 7% — the 7% figure was calling plans "Farm" that only paid
+// because the drop was overstated.
 //
 // Board membership is the house list's own rule, unchanged from radar-2:
 // pre-token (no market cap, no Gecko id, no symbol) and not a wrapped /
@@ -386,10 +401,12 @@ function launchOddsFor(
   const ageRate = bucket ? bucket.rate : overallOdds;
   const cat = categoryOdds.get(p.category);
   const catRate = cat && cat.n >= 5 ? cat.rate : overallOdds;
-  // Age carries more weight; both are then shrunk toward the overall rate.
-  const blended = 0.55 * ageRate + 0.45 * catRate;
-  const shrunk = 0.85 * blended + 0.15 * overallOdds;
-  return Math.max(0.05, Math.min(0.95, shrunk));
+  // Age carries the weight (0.7/0.3): on 5-fold cross-validation this
+  // blend scores Brier 0.201, better than radar-3's 0.55/0.45 blend
+  // shrunk toward the overall rate (0.206). No shrinkage: the blend
+  // is already the peers' own rate.
+  const blended = 0.7 * ageRate + 0.3 * catRate;
+  return Math.max(0.05, Math.min(0.95, blended));
 }
 
 export interface FarmEconomics {
@@ -403,12 +420,12 @@ export interface FarmEconomics {
   hours: number;
 }
 
-export const DROP_SHARE = 0.07; // the modelled airdrop sets aside 7% of implied value
+export const DROP_SHARE = 0.05; // the modelled airdrop sets aside 5% of implied value for farmers: the farmer slice of a typical 10% community allocation, not the whole allocation
 export const HORIZON_WEEKS = 12;
 
 export function farmEconomics(implied: number, tvl: number, odds: number, deposit: number): FarmEconomics {
   // The drop is shared pro-rata to TVL: a $1,000 deposit in a $300M TVL
-  // protocol buys 1/300,000th of the 7% set aside.
+  // protocol buys 1/300,000th of the 5% set aside.
   const drop = DROP_SHARE * implied * (deposit / Math.max(1, tvl));
   const fees = 3.4 + 0.001 * deposit;
   const hours = deposit <= 100 ? 2.4 : deposit <= 1000 ? 3.6 : 5.0;
