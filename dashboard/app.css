@@ -56,3 +56,11 @@ ol.farm b{color:var(--accent)}
 footer{padding:0 28px 28px;color:var(--faint);font-size:13px}
 button.close{background:var(--chip);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;float:right}
 @media(max-width:760px){header.hero,section,nav.tabs{padding-left:14px;padding-right:14px}.hero h1{font-size:24px}table{font-size:13px}}
+
+/* radar-3 additions */
+.account { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #334155; font-size: 13px; color: #94a3b8; }
+.account b { color: #e2e8f0; }
+.pill.farm { background: #14532d; color: #bbf7d0; }
+.pill.marginal { background: #713f12; color: #fde68a; }
+.pill.skip { background: #3f3f46; color: #d4d4d8; }
+button { cursor: pointer; }
