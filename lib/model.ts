@@ -442,14 +442,16 @@ export function priceRow(p: SnapshotProtocol, fit: Fit, deposit: number): Omit<B
   const forwardTvl = p.tvl_usd * momentum;
   const prem = fit.premiums.get(p.category);
   const premiumLog = prem ? prem.premium : 0;
-  const valueIfLaunches = Math.exp(fit.a + fit.b * Math.log(forwardTvl)) * Math.exp(premiumLog);
+  const valueIfLaunches = Math.round(Math.exp(fit.a + fit.b * Math.log(forwardTvl)) * Math.exp(premiumLog));
   const odds = launchOddsFor(p, fit.ageBuckets, fit.categoryOdds, fit.overallOdds, asOf);
-  const implied = valueIfLaunches * odds;
+  // The gate requires whole dollars: every money figure on the board is
+  // rounded to the nearest dollar before it is written.
+  const implied = Math.round(valueIfLaunches * odds);
   const q = fit.residQuantiles;
-  const p10 = implied * Math.exp(q.q10);
-  const p25 = implied * Math.exp(q.q25);
-  const p75 = implied * Math.exp(q.q75);
-  const p90 = implied * Math.exp(q.q90);
+  const p10 = Math.round(implied * Math.exp(q.q10));
+  const p25 = Math.round(implied * Math.exp(q.q25));
+  const p75 = Math.round(implied * Math.exp(q.q75));
+  const p90 = Math.round(implied * Math.exp(q.q90));
   const econ = farmEconomics(implied, p.tvl_usd, odds, deposit);
   const action = CATEGORY_ACTIONS[p.category] ?? "use the protocol";
   const ageText = age === null ? "an unknown age" : `${Math.round(age / 30.44)} months old`;
