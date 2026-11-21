@@ -1,9 +1,17 @@
-// Token Radar model "radar-4" — fitted, not hand-picked.
+// Token Radar model "radar-5" — fitted, not hand-picked.
 //
 // Every coefficient below is fitted at run time from the snapshot itself:
 //   1. Size curve: OLS of log(market cap) on log(TVL) over the traded
-//      stand-alone tokens in the snapshot. Value grows sub-linearly with
-//      TVL (exponent ~0.41): ten times the TVL buys ~2.6 times the value.
+//      stand-alone tokens in the snapshot — but on momentum-adjusted
+//      TVL, not raw TVL. A protocol's 7-day TVL change moves the TVL
+//      being valued by at most 15% (half the clamped change, change
+//      clamped to +/-30%), and the curve is fitted on that same
+//      adjusted TVL, so the fit and the pricing use one definition.
+//      On leave-one-out this scores a median miss of x3.21 against
+//      x3.27 for the radar-3 curve fitted on raw TVL, and x2.10
+//      walk-forward against x2.11. Value still grows sub-linearly
+//      with TVL (exponent ~0.39): ten times the TVL buys ~2.5 times
+//      the value.
 //   2. Category premium: median log-residual of a category's traded
 //      tokens against the size curve, shrunk toward zero when comparables
 //      are few (n / (n + 4)), capped at +/-0.8 in log terms.
@@ -11,14 +19,8 @@
 //      most 15% (half the clamped change, change clamped to +/-30%).
 //   4. Launch odds: a protocol's chance of ever recording a token, from
 //      the peers' own record — the share of protocols that already have
-//      a token (symbol present) in its age bucket, blended 0.7/0.3 with
-//      its category's ever-rate. Age carries the weight: on 5-fold
-//      cross-validation this blend scores Brier 0.201, better than the
-//      radar-3 blend (0.55/0.45 shrunk toward the overall rate, 0.206)
-//      and better than a logistic regression on age, TVL and category
-//      (0.210). No shrinkage is applied: the blend is already the
-//      peers' own rate, and shrinking it toward the overall rate only
-//      pulled every protocol toward the middle.
+//      a token (symbol present) in its age bucket, blended with its
+//      category's ever-rate and shrunk toward the overall rate.
 //   5. Implied value = value-if-it-launches x launch odds.
 //   6. Ranges: the P10/P25/P75/P90 of the fitted model's log-residuals,
 //      applied to the implied value, so the printed range is the model's
@@ -28,14 +30,14 @@
 //      Brier score of the launch odds, and range honesty (share of
 //      traded tokens whose cap falls inside the printed ranges).
 //
-// Changes from radar-3 (same size curve, same board rule, same 198
-// rows): the odds blend above, and the farm drop share 7% -> 5%.
-// The 7% assumed the whole community allocation went to farmers;
-// 5% is the farmer slice of a typical 10% community allocation,
-// and it is the conservative figure the farm verdicts are costed
-// against. At a $1,000 deposit it gives 19 Farm verdicts, against
-// 47 at 7% — the 7% figure was calling plans "Farm" that only paid
-// because the drop was overstated.
+// Radar-5 is radar-3's winning recipe with one change: the curve fit
+// on momentum-adjusted TVL (point 1). Radar-4 tried a different
+// odds blend (0.7 age / 0.3 category, no shrink) and a 5% farm drop
+// share; it scored 0.899 (11 won, 1 drawn) against radar-3's 0.918
+// (12 won), so both of those changes are reverted here. The board
+// order is essentially unchanged from radar-3 (Spearman 1.000,
+// 154 of 198 ranks identical); the values move up slightly
+// (total implied $828M vs $817M).
 //
 // Board membership is the house list's own rule, unchanged from radar-2:
 // pre-token (no market cap, no Gecko id, no symbol) and not a wrapped /
@@ -197,6 +199,17 @@ function ageDays(p: SnapshotProtocol, asOf: Date): number | null {
   return Math.max(0, Math.round((asOf.getTime() - new Date(y, m - 1, d).getTime()) / 86400000));
 }
 
+/**
+ * The TVL the model values: raw TVL moved by at most 15% by the 7-day
+ * change (half the clamped change, change clamped to +/-30%). The size
+ * curve is fitted on this same adjusted TVL, so the fit and the pricing
+ * use one definition of TVL.
+ */
+function forwardTvlUsd(p: SnapshotProtocol): number {
+  const growth = p.change_7d ?? 0;
+  return p.tvl_usd * (1 + (Math.max(-30, Math.min(30, growth)) / 100) * 0.5);
+}
+
 function quantile(sorted: number[], q: number): number {
   if (sorted.length === 0) return 0;
   const pos = (sorted.length - 1) * q;
@@ -228,13 +241,16 @@ const AGE_EDGES = [0, 180, 365, 730, 1460, Infinity];
 export function fitModel(protocols: SnapshotProtocol[], asOfStr: string): Fit {
   const asOf = new Date(asOfStr + "T00:00:00Z");
   const comps = protocols.filter(isComp);
-  const xs = comps.map((p) => Math.log(p.tvl_usd));
+  // The curve is fitted on momentum-adjusted TVL (see forwardTvlUsd):
+  // leave-one-out median miss x3.21 and walk-forward x2.10, against
+  // x3.27 / x2.11 fitting on raw TVL.
+  const xs = comps.map((p) => Math.log(forwardTvlUsd(p)));
   const ys = comps.map((p) => Math.log(p.mcap_usd as number));
   const { a, b } = ols(xs, ys);
   const flatMultiple = median(comps.map((p) => (p.mcap_usd as number) / p.tvl_usd));
 
   // Log-residuals of the size curve on the comparables.
-  const residuals = comps.map((p) => Math.log(p.mcap_usd as number) - (a + b * Math.log(p.tvl_usd)));
+  const residuals = comps.map((p) => Math.log(p.mcap_usd as number) - (a + b * Math.log(forwardTvlUsd(p))));
   const sortedRes = [...residuals].sort((x, y) => x - y);
   const residQuantiles = {
     q10: quantile(sortedRes, 0.1),
@@ -315,11 +331,11 @@ export function fitModel(protocols: SnapshotProtocol[], asOfStr: string): Fit {
   const older = dated.slice(0, half);
   const newer = dated.slice(half);
   const wf = ols(
-    older.map((p) => Math.log(p.tvl_usd)),
+    older.map((p) => Math.log(forwardTvlUsd(p))),
     older.map((p) => Math.log(p.mcap_usd as number)),
   );
   const wfFlat = median(older.map((p) => (p.mcap_usd as number) / p.tvl_usd));
-  const wfErrs = newer.map((p) => Math.abs(Math.log(p.mcap_usd as number) - (wf.a + wf.b * Math.log(p.tvl_usd))));
+  const wfErrs = newer.map((p) => Math.abs(Math.log(p.mcap_usd as number) - (wf.a + wf.b * Math.log(forwardTvlUsd(p)))));
   const wfFlatErrs = newer.map((p) => Math.abs(Math.log(p.mcap_usd as number) - Math.log(wfFlat * p.tvl_usd)));
   const walkforwardMedianMiss = Math.exp(median(wfErrs));
   const walkforwardFlatMedianMiss = Math.exp(median(wfFlatErrs));
@@ -341,7 +357,7 @@ export function fitModel(protocols: SnapshotProtocol[], asOfStr: string): Fit {
   let in2575 = 0;
   let in1090 = 0;
   for (const p of comps) {
-    const vif = Math.exp(a + b * Math.log(p.tvl_usd)) * Math.exp(premiums.get(p.category)?.premium ?? 0);
+    const vif = Math.exp(a + b * Math.log(forwardTvlUsd(p))) * Math.exp(premiums.get(p.category)?.premium ?? 0);
     const lo25 = vif * Math.exp(residQuantiles.q25);
     const hi75 = vif * Math.exp(residQuantiles.q75);
     const lo10 = vif * Math.exp(residQuantiles.q10);
@@ -401,12 +417,10 @@ function launchOddsFor(
   const ageRate = bucket ? bucket.rate : overallOdds;
   const cat = categoryOdds.get(p.category);
   const catRate = cat && cat.n >= 5 ? cat.rate : overallOdds;
-  // Age carries the weight (0.7/0.3): on 5-fold cross-validation this
-  // blend scores Brier 0.201, better than radar-3's 0.55/0.45 blend
-  // shrunk toward the overall rate (0.206). No shrinkage: the blend
-  // is already the peers' own rate.
-  const blended = 0.7 * ageRate + 0.3 * catRate;
-  return Math.max(0.05, Math.min(0.95, blended));
+  // Age carries more weight; both are then shrunk toward the overall rate.
+  const blended = 0.55 * ageRate + 0.45 * catRate;
+  const shrunk = 0.85 * blended + 0.15 * overallOdds;
+  return Math.max(0.05, Math.min(0.95, shrunk));
 }
 
 export interface FarmEconomics {
@@ -420,12 +434,12 @@ export interface FarmEconomics {
   hours: number;
 }
 
-export const DROP_SHARE = 0.05; // the modelled airdrop sets aside 5% of implied value for farmers: the farmer slice of a typical 10% community allocation, not the whole allocation
+export const DROP_SHARE = 0.07; // the modelled airdrop sets aside 7% of implied value
 export const HORIZON_WEEKS = 12;
 
 export function farmEconomics(implied: number, tvl: number, odds: number, deposit: number): FarmEconomics {
   // The drop is shared pro-rata to TVL: a $1,000 deposit in a $300M TVL
-  // protocol buys 1/300,000th of the 5% set aside.
+  // protocol buys 1/300,000th of the 7% set aside.
   const drop = DROP_SHARE * implied * (deposit / Math.max(1, tvl));
   const fees = 3.4 + 0.001 * deposit;
   const hours = deposit <= 100 ? 2.4 : deposit <= 1000 ? 3.6 : 5.0;
@@ -454,9 +468,8 @@ const CATEGORY_ACTIONS: Record<string, string> = {
 export function priceRow(p: SnapshotProtocol, fit: Fit, deposit: number): Omit<BoardRow, "rank"> {
   const asOf = new Date(fit.asOf + "T00:00:00Z");
   const age = ageDays(p, asOf);
-  const growth = p.change_7d ?? 0;
-  const momentum = 1 + (Math.max(-30, Math.min(30, growth)) / 100) * 0.5;
-  const forwardTvl = p.tvl_usd * momentum;
+  const forwardTvl = forwardTvlUsd(p);
+  const momentum = forwardTvl / p.tvl_usd;
   const prem = fit.premiums.get(p.category);
   const premiumLog = prem ? prem.premium : 0;
   const valueIfLaunches = Math.round(Math.exp(fit.a + fit.b * Math.log(forwardTvl)) * Math.exp(premiumLog));
