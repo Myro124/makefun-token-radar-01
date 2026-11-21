@@ -1,4 +1,4 @@
-// Token Radar (radar-5): read the sealed DefiLlama snapshot, fit the
+// Token Radar (radar-6): read the sealed DefiLlama snapshot, fit the
 // valuation model on its own traded tokens, rank every pre-token protocol
 // by implied value = value-if-it-launches x launch odds, and write the
 // board, the dashboard data, the dashboard, the screenshots and the
@@ -13,7 +13,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fitModel, isRankable, nearestComps, priceRow } from './lib/model.ts';
+import { fitModel, isRankable, nearestComps, priceRow, bootstrapRankRanges, accountingGroups, fnv1a, DEFAULT_DEPOSIT } from './lib/model.ts';
 import type { BoardRow, SnapshotProtocol } from './lib/model.ts';
 import { buildDossier } from './vendor/makefun-board.ts';
 
@@ -39,7 +39,7 @@ if (!existsSync(inputFile)) {
   process.exit(2);
 }
 const out = arg('output', process.env.MAKEFUN_OUTPUT_DIR ?? '/output');
-const deposit = Number(arg('deposit', '1000'));
+const deposit = Number(arg('deposit', String(DEFAULT_DEPOSIT)));
 
 const raw = JSON.parse(readFileSync(inputFile, 'utf8')) as {
   as_of: string;
@@ -58,6 +58,27 @@ const rows: BoardRow[] = rankable
   .map((p) => priceRow(p, fit, deposit))
   .sort((x, y) => y.implied_value_usd - x.implied_value_usd)
   .map((r, i) => ({ ...r, rank: i + 1 }));
+
+// Bootstrap rank ranges: refit the value model 200 times on resampled
+// comparables and record the rank range each row reaches.
+const rankRanges = bootstrapRankRanges(
+  fit,
+  rows.map((r) => ({ slug: r.slug, tvl_usd: r.tvl_usd, change_7d: r.change_7d, category: r.category, launch_odds: r.launch_odds })),
+);
+for (const r of rows) {
+  const rr = rankRanges.get(r.slug)!;
+  r.model.rank_lo = rr.lo;
+  r.model.rank_hi = rr.hi;
+}
+
+// Checksum over the board's values, recomputed by the dashboard in the
+// browser from the same projection, so the integrity strip can prove the
+// table it shows is the table main.ts wrote.
+const checksum = fnv1a(
+  JSON.stringify(
+    rows.map((r) => [r.rank, r.slug, r.implied_value_usd, r.value_if_launches_usd, r.launch_odds, r.p25_usd, r.p75_usd, r.verdict, r.net_usd]),
+  ),
+);
 
 // Gate checks the kit enforces on the board (RULES.txt).
 function boardIssue(): string | null {
@@ -83,22 +104,33 @@ if (issue !== null) {
 
 // The 758-protocol accounting: every snapshot protocol lands in exactly
 // one group, so the dashboard can prove nothing was dropped silently.
+const groups = accountingGroups(snapshot.protocols, snapshot.watchlist);
 const accounted = {
   ranked: rows.length,
-  token_recorded: snapshot.protocols.filter((p) => p.symbol !== null).length,
-  out_excluded: snapshot.protocols.filter((p) => p.symbol === null && !isRankable(p)).length,
-  total: snapshot.protocols.length,
+  token_recorded: groups.token_recorded,
+  out_excluded:
+    groups.out_bridge + groups.out_liquid_staking + groups.out_exchange + groups.out_versioned + groups.out_wrapped,
+  total: groups.total,
+  groups,
 };
 if (accounted.ranked + accounted.token_recorded + accounted.out_excluded !== accounted.total) {
   process.stderr.write(`token radar: accounting does not sum to ${accounted.total}\n`);
   process.exit(1);
 }
+if (
+  groups.ranked_watchlist + groups.ranked_early + groups.ranked_offlist !== rows.length ||
+  groups.ranked_watchlist !== snapshot.watchlist.size
+) {
+  process.stderr.write(`token radar: ranked groups do not sum to ${rows.length}\n`);
+  process.exit(1);
+}
 
 const live = snapshot.protocols.filter((p) => p.mcap_usd !== null && p.mcap_usd > 0);
 const dashboardData = {
-  model: 'radar-5',
+  model: 'radar-6',
   as_of: snapshot.asOf,
   deposit,
+  checksum,
   fit: {
     size_curve_a: fit.a,
     size_curve_b: fit.b,
@@ -186,6 +218,7 @@ const farmCount = rows.filter((r) => r.verdict === 'Farm').length;
 process.stdout.write(
   `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.size} on the watchlist, ${rows.length} rows scored (${rows.filter((r) => r.tvl_usd < 50_000_000).length} below the $50M floor)\n` +
     `token radar: size curve log(mcap) = ${fit.a.toFixed(4)} + ${fit.b.toFixed(4)} log(TVL) on ${fit.comps.length} comps; LOO miss x${fit.validation.loo_median_miss.toFixed(2)} vs flat x${fit.validation.loo_flat_median_miss.toFixed(2)}; walk-forward x${fit.validation.walkforward_median_miss.toFixed(2)} vs flat x${fit.validation.walkforward_flat_median_miss.toFixed(2)}; odds Brier ${fit.validation.odds_brier.toFixed(3)} vs base ${fit.validation.odds_brier_base.toFixed(3)}\n` +
-    `token radar: top ${rows[0]!.name} $${Math.round(rows[0]!.implied_value_usd).toLocaleString('en-US')} implied, ${farmCount} Farm verdicts, total implied $${Math.round(dashboardData.totals.implied_usd).toLocaleString('en-US')}\n` +
+    `token radar: top ${rows[0]!.name} $${Math.round(rows[0]!.implied_value_usd).toLocaleString('en-US')} implied, ${farmCount} Farm verdicts at $${deposit} (hard gate: net beats T-bill and $25/h), total implied $${Math.round(dashboardData.totals.implied_usd).toLocaleString('en-US')}\n` +
+    `token radar: checksum ${checksum}; accounting ${groups.ranked_watchlist}/${groups.ranked_early}/${groups.ranked_offlist} ranked, ${groups.token_recorded} token, ${groups.out_bridge + groups.out_liquid_staking + groups.out_exchange + groups.out_versioned + groups.out_wrapped} out\n` +
     `token radar: wrote ${join(out, 'board.json')}, ${join(out, 'data.js')}, ${join(out, 'dashboard')} (${dashFiles.length} files), ${join(out, 'screenshots')} (${shots.length} images) and ${join(out, 'dossier.json')}\n`,
 );
