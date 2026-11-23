@@ -1,4 +1,4 @@
-/* Token Radar dashboard (radar-6): fitted board, launch odds, farm verdicts,
+/* Token Radar dashboard (radar-7): fitted board, launch odds, farm verdicts,
    out-of-sample evidence. Static, no network: all data comes from data.js
    (window.TOKEN_RADAR), which main.ts writes from the snapshot.
    Radar-6: the farm verdict is a hard gate (net beats a 4% T-bill and
@@ -170,7 +170,7 @@
       '\nforward TVL      = ' + money(r.tvl_usd) + ' x ' + m.momentum_multiplier.toFixed(3) + ' (7d ' + pct(r.change_7d) + ', half counted, clamped +/-15%) = ' + money(m.forward_tvl_usd) +
       '\ncategory premium = ' + (m.category_premium_log >= 0 ? '+' : '') + m.category_premium_log.toFixed(2) + ' in log terms, ' + esc(r.category) + ' from ' + m.category_samples + ' comparables (shrunk toward 0)' +
       '\nvalue if launches = ' + money(r.value_if_launches_usd) +
-      '\nlaunch odds      = ' + (r.launch_odds * 100).toFixed(0) + '%  (age bucket ' + (m.odds_age_rate * 100).toFixed(0) + '% of peers with a token, category ' + (m.odds_category_rate * 100).toFixed(0) + '%, shrunk to the overall ' + (D.fit.overall_odds * 100).toFixed(0) + '%)' +
+      '\nlaunch odds      = ' + (r.launch_odds * 100).toFixed(0) + '%  (age bucket ' + (m.odds_age_rate * 100).toFixed(0) + '% of peers with a token, shrunk to the overall ' + (D.fit.overall_odds * 100).toFixed(0) + '%)' +
       '\nimplied value    = ' + money(r.value_if_launches_usd) + ' x ' + (r.launch_odds * 100).toFixed(0) + '% = ' + money(r.implied_value_usd) +
       '\nrange            = P25 ' + money(r.p25_usd) + ' – P75 ' + money(r.p75_usd) + ' · P10 ' + money(r.p10_usd) + ' – P90 ' + money(r.p90_usd) + ' (the fitted model\'s own residual quantiles)' +
       '\nrank range       = #' + m.rank_lo + '–#' + m.rank_hi + ' across 200 bootstrap refits of the size curve</div>' +
@@ -272,7 +272,7 @@
       return '<li class="' + (c[1] ? 'ok' : 'bad') + '">' + (c[1] ? '✓' : '✗') + ' ' + esc(c[0]) + '</li>';
     }).join('') + '</ul>';
     var html = '<header class="hero"><h1>Token Radar — <b>pre-token protocols, valued from their own record</b></h1>' +
-      '<p>Implied value = value if it launches × launch odds. The size curve is fitted on the snapshot\'s own traded tokens; the odds come from how often peers of the same age and category ever recorded a token. Snapshot ' + esc(D.as_of) + ' · ' + D.rows.length + ' protocols ranked.</p><div class="stats">' +
+      '<p>Implied value = value if it launches × launch odds. The size curve is fitted on the snapshot\'s own traded tokens; the odds come from how often peers of the same age ever recorded a token. Snapshot ' + esc(D.as_of) + ' · ' + D.rows.length + ' protocols ranked.</p><div class="stats">' +
       '<div class="stat"><b>' + D.rows.length + '</b><span>Protocols ranked</span></div>' +
       '<div class="stat"><b>' + D.totals.watchlist_ranked + '/' + D.totals.watchlist_total + '</b><span>Watchlist ranked</span></div>' +
       '<div class="stat"><b>' + money(D.totals.implied_usd) + '</b><span>Total implied value</span></div>' +
@@ -319,13 +319,13 @@
             '<td class="num">' + (l.mcap_usd && l.tvl_usd ? (l.mcap_usd / l.tvl_usd).toFixed(2) + 'x' : '—') + '</td></tr>';
         }).join('') + '</tbody></table></section>';
     } else {
-      html += '<section class="method"><h2>Evidence &amp; method — radar-6</h2>' +
+      html += '<section class="method"><h2>Evidence &amp; method — radar-7</h2>' +
         '<p>Nothing here is hand-picked. Every number below is computed from the same snapshot at run time, and the dashboard re-checks it: the board is ranks 1–' + D.rows.length + ' in order, implied values never rise, and the totals match board.json. The checklist at the top of the page shows each check.</p>' +
         '<h3>How a row is priced</h3><div class="formula">size curve        log(mcap) = ' + D.fit.size_curve_a.toFixed(4) + ' + ' + D.fit.size_curve_b.toFixed(4) + ' x log(TVL)   (OLS on ' + D.fit.comps_n + ' traded tokens; ten times the TVL buys ' + Math.pow(10, D.fit.size_curve_b).toFixed(1) + 'x the value)' +
         '\ncategory premium  median log-residual of the category\'s traded tokens, shrunk n/(n+4) toward 0, capped +/-0.8' +
         '\nmomentum          forward TVL = TVL x (1 + clamp(change_7d, -30%, +30%) / 100 x 0.5)' +
         '\nvalue if launches = exp(size curve on forward TVL) x exp(category premium)' +
-        '\nlaunch odds       55% age-bucket token rate + 45% category token rate, shrunk 15% to the overall ' + (D.fit.overall_odds * 100).toFixed(0) + '%, clamped 5%..95%' +
+        '\nlaunch odds       age-bucket token rate, shrunk 15% to the overall ' + (D.fit.overall_odds * 100).toFixed(0) + '%, clamped 5%..95%' +
         '\nimplied value     = value if it launches x launch odds' +
         '\nranges            P10/P25/P75/P90 from the fitted model\'s own residual quantiles' +
         '\nrank range        lowest and highest rank over 200 bootstrap refits of the size curve' +
@@ -339,7 +339,7 @@
         '<h3>Value terms, held out twice</h3><p>Each candidate term is tested by leave-one-out and by walk-forward (older half fits, newer half tested). A term is kept only when it earns its place; the control must not help. The category premium is the one exception to that rule, and it is kept on purpose: it corrects a systematic bias — whole categories sit 20–40% off the curve in-sample (median |premium| 0.36 in log terms) — at a small held-out cost (leave-one-out ×3.26 against ×3.21 without it, walk-forward ×2.21 against ×2.10).</p>' +
         '<table><thead><tr><th>Term</th><th class="num">Leave-one-out miss</th><th class="num">Walk-forward miss</th><th>Decision</th></tr></thead><tbody>' +
         v.value_terms.map(function (t) { return '<tr><td>' + esc(t.name) + '</td><td class="num">×' + t.loo.toFixed(2) + '</td><td class="num">×' + t.walkforward.toFixed(2) + '</td><td>' + esc(t.kept) + '</td></tr>'; }).join('') + '</tbody></table>' +
-        '<h3>Launch-odds terms, held out twice</h3><p>Brier score, lower is better. Leave-one-out is the clean test: each protocol is predicted from rates fitted on the other 441. On it, age alone (0.212) is a touch ahead of the blend (0.216) — the category rate adds nothing measurable held out, though it wins in-sample (0.195 against 0.207) and it is what differentiates two protocols of the same age in different categories, so it is kept at a cost of 0.004 Brier. Walk-forward splits by listing date, so the older half mostly already records a token and any rate fitted on it over-predicts the newer half — that is why the category rate looks bad there.</p>' +
+        '<h3>Launch-odds terms, held out twice</h3><p>Brier score, lower is better. Leave-one-out is the clean test: each protocol is predicted from rates fitted on the other 441. On it, age alone (0.212) is ahead of the blend (0.216) and of the category rate alone (0.252, worse than the base rate 0.251) — the category rate adds nothing measurable held out, so the odds kept are age-only, shrunk 0.85 toward the overall rate. The blend is shown only as a comparison. Walk-forward splits by listing date, so the older half mostly already records a token and any rate fitted on it over-predicts the newer half — that is why the category rate looks bad there.</p>' +
         '<table><thead><tr><th>Term</th><th class="num">Leave-one-out Brier</th><th class="num">Walk-forward Brier</th><th>Decision</th></tr></thead><tbody>' +
         v.odds_terms.map(function (t) { return '<tr><td>' + esc(t.name) + '</td><td class="num">' + t.loo.toFixed(3) + '</td><td class="num">' + t.walkforward.toFixed(3) + '</td><td>' + esc(t.kept) + '</td></tr>'; }).join('') + '</tbody></table>' +
         '<h3>Bootstrap — how sure is the curve?</h3><p>200 refits on resampled comparables (seeded, so the numbers are the same on every run). Slope ' + v.bootstrap.slope.toFixed(2) + ' ± ' + v.bootstrap.slope_se.toFixed(2) + '; intercept ' + v.bootstrap.intercept.toFixed(2) + ' ± ' + v.bootstrap.intercept_se.toFixed(2) + '; a $100M TVL protocol\'s token is worth ' + (v.bootstrap.multiple_at_100m * 100).toFixed(1) + '% of its TVL ± ' + (v.bootstrap.multiple_at_100m_se * 100).toFixed(1) + ' points. Every row carries the rank range it reaches across those refits — see the small range under each rank on the board.</p>' +
@@ -353,7 +353,7 @@
         '<h3>What this board does not do</h3><p>It does not predict whether or when a token is issued. A high implied value means the protocol is large, growing and seasoned enough that a token priced like its sector\'s live tokens would be large, times the odds — from the peers\' record — that it ever launches one. Farm plans are sized to the protocol\'s TVL and age; check the protocol\'s own pages before acting, and never pay to claim an airdrop.</p></section>';
     }
     var monotonic = D.rows.every(function (r, i) { return i === 0 || r.implied_value_usd <= D.rows[i - 1].implied_value_usd; });
-    html += '<footer>Token Radar · model radar-6 · snapshot ' + esc(D.as_of) + ' · Integrity: ' + D.rows.length + ' rows, ranks 1–' + D.rows.length + ' in order, values ' + (monotonic ? 'never rise' : 'CHECK FAILED') + ', total implied ' + moneyFull(D.totals.implied_usd) + ' = board.json · checksum ' + D.checksum + ' · Built for the make.fun token launch radar bounty. Implied values are this entry\'s own claim, not a prediction.</footer>';
+    html += '<footer>Token Radar · model radar-7 · snapshot ' + esc(D.as_of) + ' · Integrity: ' + D.rows.length + ' rows, ranks 1–' + D.rows.length + ' in order, values ' + (monotonic ? 'never rise' : 'CHECK FAILED') + ', total implied ' + moneyFull(D.totals.implied_usd) + ' = board.json · checksum ' + D.checksum + ' · Built for the make.fun token launch radar bounty. Implied values are this entry\'s own claim, not a prediction.</footer>';
     root.innerHTML = html;
     bind();
     drawScatter();
