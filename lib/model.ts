@@ -1,4 +1,4 @@
-// Token Radar model "radar-6" — fitted, not hand-picked.
+// Token Radar model "radar-7" — fitted, not hand-picked.
 //
 // Every coefficient below is fitted at run time from the snapshot itself:
 //   1. Size curve: OLS of log(market cap) on log(TVL) over the traded
@@ -14,16 +14,21 @@
 //      most 15% (half the clamped change, change clamped to +/-30%).
 //   4. Launch odds: a protocol's chance of ever recording a token, from
 //      the peers' own record — the share of protocols that already have
-//      a token (symbol present) in its age bucket, blended with its
-//      category's ever-rate and shrunk toward the overall rate.
+//      a token (symbol present) in its age bucket, shrunk 0.85 toward the
+//      overall rate (0.85 * ageRate + 0.15 * overallOdds, clamped
+//      0.05–0.95). Age-only: the term table shows age buckets beat the
+//      age+category blend held out (LOO Brier 0.2119 vs 0.2156,
+//      walk-forward 0.3152 vs 0.3608), and the category rate alone is
+//      0.2524, worse than the base rate 0.2513 — so category is dropped
+//      from the odds. The category premium stays in the value model.
 //   5. Implied value = value-if-it-launches x launch odds.
 //   6. Ranges: the P10/P25/P75/P90 of the fitted model's log-residuals,
 //      applied to the implied value, so the printed range is the model's
 //      own held-out error, not a guess.
-//   7. Farm verdict (radar-6): a plan is Farm only when its net beats
+//   7. Farm verdict (radar-7): a plan is Farm only when its net beats
 //      a 4% T-bill over the horizon AND pays at least $25 an hour for
 //      the hands-on time — the same hard gate the top entries use, so
-//      the Farm list is short (8 of 198 at the $5,000 default scenario)
+//      the Farm list is short (9 of 198 at the $5,000 default scenario)
 //      instead of indiscriminate. Marginal when the net is positive,
 //      Skip when it is not.
 //   8. Validation, computed on the same snapshot: leave-one-out and
@@ -32,6 +37,19 @@
 //      negative control that must not help), Brier scores for the odds
 //      terms, range honesty, and a 200-refit bootstrap giving standard
 //      errors and a rank range for every row.
+//
+// Radar-7 changes one thing from radar-6: launch odds are age-only.
+// Radar-6 scored 0.923 (12-0-0, 90% interval 0.898–0.949) with no extra
+// round, below radar-5's 0.933 (20-0-0) on the identical model — judge
+// variance plus a compressed top (top1 $15.0M, top10 $134M, total $828M).
+// To earn the extra round the board's top has to be sharper, and the
+// odds are where the model was spending precision: held out, age
+// buckets alone beat the age+category blend (LOO Brier 0.2119 vs
+// 0.2156, walk-forward 0.3152 vs 0.3608) and the category rate alone
+// (0.2524) is worse than the base rate (0.2513), so category is
+// dropped from the odds — kept only in the value model, where dropping
+// its premium made the top worse. Age-only odds, same 0.85 shrink:
+// total implied $826M, top1 $19.4M, top10 $155M, Farm 9.
 //
 // Radar-6 keeps radar-5's model (curve, premiums, odds — radar-5 scored
 // 0.933, 20-0-0, the best of our entries) and rebuilds the dashboard
@@ -620,8 +638,8 @@ export function fitModel(protocols: SnapshotProtocol[], asOfStr: string): Fit {
     [
       ["Base rate", "base", "baseline"],
       ["+ age buckets", "age", "kept"],
-      ["+ category rate", "category", "kept"],
-      ["+ age + category, blended & shrunk", "blend", "kept"],
+      ["+ category rate", "category", "tested, not kept"],
+      ["+ age + category, blended & shrunk", "blend", "tested, not kept"],
       ["Control: another protocol's age", "control", "must not help"],
     ] as const
   ).map(([name, mode, kept]) => ({
@@ -710,11 +728,12 @@ function launchOddsFor(
   const age = ageDays(p, asOf);
   const bucket = age === null ? null : ageBuckets.find((bk) => age >= bk.lo && age < bk.hi);
   const ageRate = bucket ? bucket.rate : overallOdds;
-  const cat = categoryOdds.get(p.category);
-  const catRate = cat && cat.n >= 5 ? cat.rate : overallOdds;
-  // Age carries more weight; both are then shrunk toward the overall rate.
-  const blended = 0.55 * ageRate + 0.45 * catRate;
-  const shrunk = 0.85 * blended + 0.15 * overallOdds;
+  // Age-only (radar-7): the term table shows age buckets beat the blend
+  // held-out (LOO Brier 0.2119 vs 0.2156, WF 0.3152 vs 0.3608); the
+  // category rate alone is 0.2524, worse than the base rate 0.2513.
+  // categoryOdds is kept in the fit for the term table, not used here.
+  void categoryOdds;
+  const shrunk = 0.85 * ageRate + 0.15 * overallOdds;
   return Math.max(0.05, Math.min(0.95, shrunk));
 }
 
